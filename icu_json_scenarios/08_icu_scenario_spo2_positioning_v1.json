@@ -1,0 +1,403 @@
+{
+  "schema_version": "1.0",
+  "scenario_meta": {
+    "id": "icu_scenario_spo2_positioning_v1",
+    "title": "ΜΕΘ: Πτώση SpO2 λόγω Θέσης Ασθενούς",
+    "description": "Σενάριο πτώσης SpO2 όπου η αλλαγή θέσης και ο έλεγχος παροχής οξυγόνου βελτιώνουν την κατάσταση.",
+    "estimated_duration_minutes": 8,
+    "difficulty": "Intermediate",
+    "learning_goals": [
+      "Αναγνώριση χαμηλού SpO2",
+      "Αξιολόγηση θέσης ασθενούς",
+      "Επανέλεγχος οξυγόνου",
+      "Τεκμηρίωση παρέμβασης"
+    ]
+  },
+  "initial_state": {
+    "time_elapsed": 0,
+    "current_score": 100,
+    "flags": {
+      "assessment_complete": false,
+      "position_checked": false,
+      "oxygen_checked": false,
+      "position_corrected": false,
+      "documentation_1_complete": false,
+      "escalation_complete": false,
+      "documentation_2_complete": false
+    },
+    "vitals": {
+      "hr": 112,
+      "spo2": 89,
+      "rr": 28,
+      "bp": "122/78",
+      "temp": 37.0
+    },
+    "ui": {
+      "active_hotspots": [
+        "hs_monitor",
+        "hs_patient",
+        "hs_ventilator",
+        "hs_ehr",
+        "hs_call"
+      ],
+      "monitor_alert": true
+    }
+  },
+  "hotspots": [
+    {
+      "id": "hs_monitor",
+      "label": "Μόνιτορ Ζωτικών Λειτουργιών"
+    },
+    {
+      "id": "hs_patient",
+      "label": "Ασθενής / Κλίνη"
+    },
+    {
+      "id": "hs_ventilator",
+      "label": "Παροχή Οξυγόνου / Αναπνευστήρας"
+    },
+    {
+      "id": "hs_ehr",
+      "label": "Τερματικό EHR / e-Health"
+    },
+    {
+      "id": "hs_call",
+      "label": "Κουμπί Κλήσης"
+    }
+  ],
+  "ehr_config": {
+    "forms": {
+      "assessment_form": {
+        "title": "Κλινική Αξιολόγηση",
+        "fields": [
+          "observation",
+          "consciousness",
+          "spo2_value",
+          "breathing_observation"
+        ]
+      },
+      "intervention_form": {
+        "title": "Παρέμβαση Θέσης / Οξυγόνου",
+        "fields": [
+          "action",
+          "position_change",
+          "oxygen_check",
+          "spo2_recheck"
+        ]
+      },
+      "communication_log": {
+        "title": "Ημερολόγιο Επικοινωνίας",
+        "fields": [
+          "recipient",
+          "reason",
+          "outcome"
+        ]
+      }
+    }
+  },
+  "rules": {
+    "global_rules": [
+      {
+        "id": "rule_low_spo2_alarm",
+        "condition": {
+          "vitals.spo2": {
+            "lt": 90
+          }
+        },
+        "effects": [
+          {
+            "type": "ui_visual",
+            "target": "hs_monitor",
+            "state": "blinking_red"
+          },
+          {
+            "type": "ui_toast",
+            "style": "danger",
+            "message": "ΣΥΝΑΓΕΡΜΟΣ: SpO2 < 90%"
+          }
+        ]
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "n1_start",
+      "type": "message",
+      "text": "Ο ασθενής έχει γλιστρήσει χαμηλά στο κρεβάτι. Το SpO2 είναι 89% και RR 28.",
+      "next_node_id": "n2_initial_decision"
+    },
+    {
+      "id": "n2_initial_decision",
+      "type": "decision",
+      "text": "Ποια είναι η πρώτη σου ενέργεια;",
+      "options": [
+        {
+          "id": "opt_assess",
+          "label": "Αξιολόγηση ασθενούς και αναπνοής",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.assessment_complete": true
+            },
+            "toast": "Ο ασθενής φαίνεται να δυσκολεύεται λόγω κακής θέσης."
+          },
+          "next_node_id": "n3_confirm_problem"
+        },
+        {
+          "id": "opt_monitor",
+          "label": "Έλεγχος SpO2 στο μόνιτορ",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": 5,
+            "toast": "Το SpO2 είναι χαμηλό και έχει πτωτική τάση."
+          },
+          "next_node_id": "n3_confirm_problem"
+        },
+        {
+          "id": "opt_ehr",
+          "label": "Άνοιγμα EHR πριν την παρέμβαση",
+          "target_hotspot": "hs_ehr",
+          "effects": {
+            "score_delta": -5,
+            "toast": "Το EHR θα χρειαστεί μετά, αλλά τώρα προέχει η θέση και η αναπνοή."
+          },
+          "next_node_id": "n3_confirm_problem"
+        }
+      ],
+      "timeout": {
+        "seconds": 25,
+        "on_timeout_effects": {
+          "vitals_update": {
+            "spo2": 86,
+            "hr": 120,
+            "rr": 32
+          },
+          "score_delta": -10,
+          "toast": "Καθυστέρηση! Το SpO2 έπεσε στο 86%."
+        },
+        "next_node_id": "n3_confirm_problem"
+      }
+    },
+    {
+      "id": "n3_confirm_problem",
+      "type": "decision",
+      "text": "Η πτώση SpO2 επιβεβαιώνεται. Τι ελέγχεις;",
+      "options": [
+        {
+          "id": "opt_check_position",
+          "label": "Έλεγχος και διόρθωση θέσης στο κρεβάτι",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.position_checked": true
+            },
+            "toast": "Η θέση φαίνεται να περιορίζει την άνετη αναπνοή."
+          },
+          "next_node_id": "n4_intervention"
+        },
+        {
+          "id": "opt_check_oxygen",
+          "label": "Έλεγχος παροχής οξυγόνου / αναπνευστήρα",
+          "target_hotspot": "hs_ventilator",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.oxygen_checked": true
+            },
+            "toast": "Η παροχή είναι ενεργή, αλλά χρειάζεται και αλλαγή θέσης."
+          },
+          "next_node_id": "n4_intervention"
+        },
+        {
+          "id": "opt_wait",
+          "label": "Αναμονή",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -20,
+            "vitals_update": {
+              "spo2": 84,
+              "hr": 128
+            },
+            "toast": "Λάθος. Ο αποκορεσμός συνεχίζεται."
+          },
+          "next_node_id": "n4_intervention"
+        }
+      ]
+    },
+    {
+      "id": "n4_intervention",
+      "type": "decision",
+      "text": "Ποια παρέμβαση κάνεις;",
+      "options": [
+        {
+          "id": "opt_reposition",
+          "label": "Ανύψωση κεφαλής και σωστή θέση ασθενούς",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 20,
+            "state_update": {
+              "flags.position_corrected": true
+            },
+            "vitals_update": {
+              "spo2": 95,
+              "hr": 100,
+              "rr": 22
+            },
+            "toast": "Η θέση διορθώθηκε. Το SpO2 ανεβαίνει."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        },
+        {
+          "id": "opt_adjust_oxygen_only",
+          "label": "Μόνο έλεγχος οξυγόνου χωρίς αλλαγή θέσης",
+          "target_hotspot": "hs_ventilator",
+          "effects": {
+            "score_delta": 5,
+            "vitals_update": {
+              "spo2": 91
+            },
+            "toast": "Υπάρχει μικρή βελτίωση, αλλά η θέση παραμένει πρόβλημα."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        },
+        {
+          "id": "opt_do_nothing",
+          "label": "Καμία παρέμβαση",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -25,
+            "vitals_update": {
+              "spo2": 82,
+              "hr": 135
+            },
+            "toast": "Κρίσιμο λάθος. Το SpO2 πέφτει περισσότερο."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        }
+      ]
+    },
+    {
+      "id": "n5_gate_documentation_1",
+      "type": "gate",
+      "text": "GATE: Τεκμηρίωση πτώσης SpO2 και αλλαγής θέσης.",
+      "description": "Η ροή μπλοκάρει μέχρι να συμπληρωθούν τα απαιτούμενα πεδία στο EHR.",
+      "gate_requirements": {
+        "target_hotspot": "hs_ehr",
+        "required_forms": [
+          {
+            "form_id": "assessment_form",
+            "fields": [
+              "observation",
+              "spo2_value"
+            ]
+          },
+          {
+            "form_id": "intervention_form",
+            "fields": [
+              "action",
+              "position_change",
+              "spo2_recheck"
+            ]
+          }
+        ]
+      },
+      "feedback_blocked": "Πρέπει να τεκμηριώσεις την πτώση SpO2 και την αλλαγή θέσης.",
+      "feedback_success": "Η τεκμηρίωση αποθηκεύτηκε.",
+      "effects_on_pass": {
+        "state_update": {
+          "flags.documentation_1_complete": true
+        },
+        "score_delta": 10
+      },
+      "next_node_id": "n6_reassessment"
+    },
+    {
+      "id": "n6_reassessment",
+      "type": "message",
+      "text": "5 λεπτά αργότερα... Το SpO2 είναι 95% και ο ασθενής αναπνέει πιο άνετα.",
+      "next_node_id": "n7_escalation_decision"
+    },
+    {
+      "id": "n7_escalation_decision",
+      "type": "decision",
+      "text": "Χρειάζεται ενημέρωση ιατρού για το επεισόδιο;",
+      "options": [
+        {
+          "id": "opt_call_doc",
+          "label": "Κλήση ιατρού / κλιμάκωση",
+          "target_hotspot": "hs_call",
+          "effects": {
+            "state_update": {
+              "flags.escalation_complete": true
+            },
+            "score_delta": 10,
+            "toast": "Ο εφημερεύων ιατρός ενημερώθηκε."
+          },
+          "next_node_id": "n8_gate_documentation_2"
+        },
+        {
+          "id": "opt_monitor_only",
+          "label": "Συνέχιση παρακολούθησης χωρίς κλιμάκωση",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -5,
+            "toast": "Συνεχίζεις την παρακολούθηση, αλλά η κλιμάκωση θα ήταν ασφαλέστερη επιλογή."
+          },
+          "next_node_id": "n9_end_scenario"
+        }
+      ]
+    },
+    {
+      "id": "n8_gate_documentation_2",
+      "type": "gate",
+      "text": "GATE: Καταγραφή επικοινωνίας.",
+      "description": "Κατέγραψε την επικοινωνία με τον ιατρό στο Communication Log.",
+      "gate_requirements": {
+        "target_hotspot": "hs_ehr",
+        "required_forms": [
+          {
+            "form_id": "communication_log",
+            "fields": [
+              "recipient",
+              "reason",
+              "outcome"
+            ]
+          }
+        ]
+      },
+      "feedback_blocked": "Εκκρεμεί η καταγραφή επικοινωνίας στο EHR.",
+      "feedback_success": "Η επικοινωνία καταγράφηκε.",
+      "effects_on_pass": {
+        "state_update": {
+          "flags.documentation_2_complete": true
+        },
+        "score_delta": 5
+      },
+      "next_node_id": "n9_end_scenario"
+    },
+    {
+      "id": "n9_end_scenario",
+      "type": "end",
+      "text": "Το σενάριο πτώσης SpO2 λόγω θέσης ολοκληρώθηκε.",
+      "debrief_config": {
+        "show_score": true,
+        "show_decision_path": true,
+        "highlight_missed_docs": true,
+        "export_log": true
+      }
+    }
+  ],
+  "logging": {
+    "enabled": true,
+    "log_events": [
+      "NODE_ENTER",
+      "HOTSPOT_INTERACTION",
+      "OPTION_SELECTED",
+      "EHR_SUBMIT",
+      "VITALS_CHANGE"
+    ],
+    "export_format": "JSON"
+  }
+}

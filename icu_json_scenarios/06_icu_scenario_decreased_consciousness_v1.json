@@ -1,0 +1,400 @@
+{
+  "schema_version": "1.0",
+  "scenario_meta": {
+    "id": "icu_scenario_decreased_consciousness_v1",
+    "title": "ΜΕΘ: Πτώση Επιπέδου Συνείδησης",
+    "description": "Σενάριο όπου ο ασθενής ανταποκρίνεται πιο αργά και χρειάζεται αξιολόγηση, αναζήτηση δεδομένων EHR και κλιμάκωση.",
+    "estimated_duration_minutes": 8,
+    "difficulty": "Intermediate",
+    "learning_goals": [
+      "Αξιολόγηση επιπέδου συνείδησης",
+      "Έλεγχος ζωτικών και ιστορικού",
+      "Αναγνώριση ανάγκης κλιμάκωσης",
+      "Καταγραφή επικοινωνίας"
+    ]
+  },
+  "initial_state": {
+    "time_elapsed": 0,
+    "current_score": 100,
+    "flags": {
+      "assessment_complete": false,
+      "consciousness_checked": false,
+      "ehr_history_checked": false,
+      "safety_intervention_started": false,
+      "documentation_1_complete": false,
+      "escalation_complete": false,
+      "documentation_2_complete": false
+    },
+    "vitals": {
+      "hr": 105,
+      "spo2": 94,
+      "rr": 20,
+      "bp": "110/70",
+      "temp": 37.2
+    },
+    "ui": {
+      "active_hotspots": [
+        "hs_monitor",
+        "hs_patient",
+        "hs_ehr",
+        "hs_call",
+        "hs_medication_cart"
+      ],
+      "monitor_alert": true
+    }
+  },
+  "hotspots": [
+    {
+      "id": "hs_monitor",
+      "label": "Μόνιτορ Ζωτικών Λειτουργιών"
+    },
+    {
+      "id": "hs_patient",
+      "label": "Ασθενής / Κλίνη"
+    },
+    {
+      "id": "hs_ehr",
+      "label": "Τερματικό EHR / e-Health"
+    },
+    {
+      "id": "hs_call",
+      "label": "Κουμπί Κλήσης"
+    },
+    {
+      "id": "hs_medication_cart",
+      "label": "Τροχήλατο Φαρμάκων"
+    }
+  ],
+  "ehr_config": {
+    "forms": {
+      "assessment_form": {
+        "title": "Κλινική Αξιολόγηση",
+        "fields": [
+          "observation",
+          "consciousness",
+          "consciousness_level",
+          "spo2_value"
+        ]
+      },
+      "intervention_form": {
+        "title": "Παρέμβαση Ασφάλειας",
+        "fields": [
+          "action",
+          "position",
+          "monitoring_plan",
+          "reassessment"
+        ]
+      },
+      "communication_log": {
+        "title": "Ημερολόγιο Επικοινωνίας",
+        "fields": [
+          "recipient",
+          "reason",
+          "outcome"
+        ]
+      }
+    }
+  },
+  "rules": {
+    "global_rules": [
+      {
+        "id": "rule_low_spo2_warning",
+        "condition": {
+          "vitals.spo2": {
+            "lt": 95
+          }
+        },
+        "effects": [
+          {
+            "type": "ui_visual",
+            "target": "hs_monitor",
+            "state": "yellow_warning"
+          },
+          {
+            "type": "ui_toast",
+            "style": "warning",
+            "message": "Προειδοποίηση: SpO2 κάτω από 95%."
+          }
+        ]
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "n1_start",
+      "type": "message",
+      "text": "Ο ασθενής ανταποκρίνεται πιο αργά όταν του μιλάς. Το SpO2 είναι 94% και HR 105.",
+      "next_node_id": "n2_initial_decision"
+    },
+    {
+      "id": "n2_initial_decision",
+      "type": "decision",
+      "text": "Ποια είναι η πρώτη σου ενέργεια;",
+      "options": [
+        {
+          "id": "opt_assess",
+          "label": "Άμεση αξιολόγηση επιπέδου συνείδησης",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.consciousness_checked": true
+            },
+            "toast": "Ο ασθενής ανοίγει τα μάτια με καθυστέρηση και απαντά αργά."
+          },
+          "next_node_id": "n3_confirm_problem"
+        },
+        {
+          "id": "opt_monitor",
+          "label": "Έλεγχος ζωτικών στο μόνιτορ",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": 5,
+            "toast": "Τα ζωτικά είναι οριακά αλλά όχι σταθερά ιδανικά."
+          },
+          "next_node_id": "n3_confirm_problem"
+        },
+        {
+          "id": "opt_meds_first",
+          "label": "Έλεγχος φαρμάκων πριν αξιολόγηση",
+          "target_hotspot": "hs_medication_cart",
+          "effects": {
+            "score_delta": -5,
+            "toast": "Πρώτα πρέπει να αξιολογήσεις την κατάσταση του ασθενούς."
+          },
+          "next_node_id": "n3_confirm_problem"
+        }
+      ],
+      "timeout": {
+        "seconds": 30,
+        "on_timeout_effects": {
+          "vitals_update": {
+            "spo2": 91,
+            "hr": 112,
+            "rr": 24
+          },
+          "score_delta": -10,
+          "toast": "Καθυστέρηση! Ο ασθενής ανταποκρίνεται ακόμα πιο αργά."
+        },
+        "next_node_id": "n3_confirm_problem"
+      }
+    },
+    {
+      "id": "n3_confirm_problem",
+      "type": "decision",
+      "text": "Η μεταβολή στη συνείδηση επιβεβαιώνεται. Τι κάνεις μετά;",
+      "options": [
+        {
+          "id": "opt_ehr_history",
+          "label": "Έλεγχος προηγούμενων καταγραφών στο EHR",
+          "target_hotspot": "hs_ehr",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.ehr_history_checked": true
+            },
+            "toast": "Βρίσκεις ότι το επίπεδο συνείδησης ήταν καλύτερο νωρίτερα."
+          },
+          "next_node_id": "n4_intervention"
+        },
+        {
+          "id": "opt_reassess_airway",
+          "label": "Επανεκτίμηση αναπνοής και θέσης",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 10,
+            "toast": "Η αναπνοή είναι παρούσα αλλά χρειάζεται στενή παρακολούθηση."
+          },
+          "next_node_id": "n4_intervention"
+        },
+        {
+          "id": "opt_wait",
+          "label": "Αναμονή χωρίς ενέργεια",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -20,
+            "vitals_update": {
+              "spo2": 89,
+              "hr": 120
+            },
+            "toast": "Λάθος. Το SpO2 πέφτει και η κατάσταση χειροτερεύει."
+          },
+          "next_node_id": "n4_intervention"
+        }
+      ]
+    },
+    {
+      "id": "n4_intervention",
+      "type": "decision",
+      "text": "Ποια άμεση ενέργεια επιλέγεις;",
+      "options": [
+        {
+          "id": "opt_safe_position",
+          "label": "Ασφαλής θέση ασθενούς και αυξημένη παρακολούθηση",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 20,
+            "state_update": {
+              "flags.safety_intervention_started": true
+            },
+            "vitals_update": {
+              "spo2": 96,
+              "hr": 100
+            },
+            "toast": "Η θέση βελτιώθηκε και το SpO2 ανέβηκε."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        },
+        {
+          "id": "opt_call_now",
+          "label": "Άμεση κλήση ιατρού",
+          "target_hotspot": "hs_call",
+          "effects": {
+            "score_delta": 15,
+            "state_update": {
+              "flags.escalation_complete": true
+            },
+            "toast": "Ο ιατρός ενημερώθηκε για μεταβολή συνείδησης."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        },
+        {
+          "id": "opt_ignore",
+          "label": "Συνέχιση χωρίς παρέμβαση",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -25,
+            "vitals_update": {
+              "spo2": 88,
+              "hr": 125
+            },
+            "toast": "Κρίσιμο λάθος. Η κατάσταση επιδεινώνεται."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        }
+      ]
+    },
+    {
+      "id": "n5_gate_documentation_1",
+      "type": "gate",
+      "text": "GATE: Τεκμηρίωση μεταβολής συνείδησης.",
+      "description": "Η ροή μπλοκάρει μέχρι να συμπληρωθούν τα απαιτούμενα πεδία στο EHR.",
+      "gate_requirements": {
+        "target_hotspot": "hs_ehr",
+        "required_forms": [
+          {
+            "form_id": "assessment_form",
+            "fields": [
+              "observation",
+              "consciousness_level",
+              "spo2_value"
+            ]
+          },
+          {
+            "form_id": "intervention_form",
+            "fields": [
+              "action",
+              "position",
+              "monitoring_plan"
+            ]
+          }
+        ]
+      },
+      "feedback_blocked": "Πρέπει να καταγράψεις την αξιολόγηση συνείδησης και την παρέμβαση.",
+      "feedback_success": "Η τεκμηρίωση αποθηκεύτηκε.",
+      "effects_on_pass": {
+        "state_update": {
+          "flags.documentation_1_complete": true
+        },
+        "score_delta": 10
+      },
+      "next_node_id": "n6_reassessment"
+    },
+    {
+      "id": "n6_reassessment",
+      "type": "message",
+      "text": "5 λεπτά αργότερα... Ο ασθενής ανταποκρίνεται καλύτερα, αλλά η μεταβολή πρέπει να αναφερθεί.",
+      "next_node_id": "n7_escalation_decision"
+    },
+    {
+      "id": "n7_escalation_decision",
+      "type": "decision",
+      "text": "Χρειάζεται κλήση ιατρού για τη μεταβολή συνείδησης;",
+      "options": [
+        {
+          "id": "opt_call_doc",
+          "label": "Κλήση ιατρού / κλιμάκωση",
+          "target_hotspot": "hs_call",
+          "effects": {
+            "state_update": {
+              "flags.escalation_complete": true
+            },
+            "score_delta": 10,
+            "toast": "Ο εφημερεύων ιατρός ενημερώθηκε."
+          },
+          "next_node_id": "n8_gate_documentation_2"
+        },
+        {
+          "id": "opt_monitor_only",
+          "label": "Συνέχιση παρακολούθησης χωρίς κλιμάκωση",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -5,
+            "toast": "Συνεχίζεις την παρακολούθηση, αλλά η κλιμάκωση θα ήταν ασφαλέστερη επιλογή."
+          },
+          "next_node_id": "n9_end_scenario"
+        }
+      ]
+    },
+    {
+      "id": "n8_gate_documentation_2",
+      "type": "gate",
+      "text": "GATE: Καταγραφή επικοινωνίας.",
+      "description": "Κατέγραψε την επικοινωνία με τον ιατρό στο Communication Log.",
+      "gate_requirements": {
+        "target_hotspot": "hs_ehr",
+        "required_forms": [
+          {
+            "form_id": "communication_log",
+            "fields": [
+              "recipient",
+              "reason",
+              "outcome"
+            ]
+          }
+        ]
+      },
+      "feedback_blocked": "Εκκρεμεί η καταγραφή επικοινωνίας στο EHR.",
+      "feedback_success": "Η επικοινωνία καταγράφηκε.",
+      "effects_on_pass": {
+        "state_update": {
+          "flags.documentation_2_complete": true
+        },
+        "score_delta": 5
+      },
+      "next_node_id": "n9_end_scenario"
+    },
+    {
+      "id": "n9_end_scenario",
+      "type": "end",
+      "text": "Το σενάριο πτώσης συνείδησης ολοκληρώθηκε.",
+      "debrief_config": {
+        "show_score": true,
+        "show_decision_path": true,
+        "highlight_missed_docs": true,
+        "export_log": true
+      }
+    }
+  ],
+  "logging": {
+    "enabled": true,
+    "log_events": [
+      "NODE_ENTER",
+      "HOTSPOT_INTERACTION",
+      "OPTION_SELECTED",
+      "EHR_SUBMIT",
+      "VITALS_CHANGE"
+    ],
+    "export_format": "JSON"
+  }
+}

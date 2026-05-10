@@ -1,0 +1,402 @@
+{
+  "schema_version": "1.0",
+  "scenario_meta": {
+    "id": "icu_scenario_tachycardia_v1",
+    "title": "ΜΕΘ: Ταχυκαρδία και Ανησυχία Ασθενούς",
+    "description": "Σενάριο όπου ο ασθενής εμφανίζει αυξημένη καρδιακή συχνότητα και ανησυχία.",
+    "estimated_duration_minutes": 8,
+    "difficulty": "Intermediate",
+    "learning_goals": [
+      "Αναγνώριση ταχυκαρδίας",
+      "Αξιολόγηση συμπτωμάτων",
+      "Επιλογή ασφαλούς παρέμβασης",
+      "Τεκμηρίωση και κλιμάκωση"
+    ]
+  },
+  "initial_state": {
+    "time_elapsed": 0,
+    "current_score": 100,
+    "flags": {
+      "assessment_complete": false,
+      "hr_confirmed": false,
+      "pain_anxiety_checked": false,
+      "intervention_started": false,
+      "documentation_1_complete": false,
+      "escalation_complete": false,
+      "documentation_2_complete": false
+    },
+    "vitals": {
+      "hr": 145,
+      "spo2": 95,
+      "rr": 26,
+      "bp": "135/85",
+      "temp": 37.4
+    },
+    "ui": {
+      "active_hotspots": [
+        "hs_monitor",
+        "hs_patient",
+        "hs_medication_cart",
+        "hs_ehr",
+        "hs_call"
+      ],
+      "monitor_alert": true
+    }
+  },
+  "hotspots": [
+    {
+      "id": "hs_monitor",
+      "label": "Μόνιτορ Ζωτικών Λειτουργιών"
+    },
+    {
+      "id": "hs_patient",
+      "label": "Ασθενής / Κλίνη"
+    },
+    {
+      "id": "hs_medication_cart",
+      "label": "Τροχήλατο Φαρμάκων"
+    },
+    {
+      "id": "hs_ehr",
+      "label": "Τερματικό EHR / e-Health"
+    },
+    {
+      "id": "hs_call",
+      "label": "Κουμπί Κλήσης"
+    }
+  ],
+  "ehr_config": {
+    "forms": {
+      "assessment_form": {
+        "title": "Κλινική Αξιολόγηση",
+        "fields": [
+          "observation",
+          "consciousness",
+          "heart_rate_value",
+          "pain_score"
+        ]
+      },
+      "intervention_form": {
+        "title": "Παρέμβαση Ταχυκαρδίας",
+        "fields": [
+          "action",
+          "patient_position",
+          "pain_anxiety_check",
+          "hr_recheck"
+        ]
+      },
+      "communication_log": {
+        "title": "Ημερολόγιο Επικοινωνίας",
+        "fields": [
+          "recipient",
+          "reason",
+          "outcome"
+        ]
+      }
+    }
+  },
+  "rules": {
+    "global_rules": [
+      {
+        "id": "rule_tachycardia_alarm",
+        "condition": {
+          "vitals.hr": {
+            "gt": 130
+          }
+        },
+        "effects": [
+          {
+            "type": "ui_visual",
+            "target": "hs_monitor",
+            "state": "blinking_red"
+          },
+          {
+            "type": "ui_toast",
+            "style": "danger",
+            "message": "ΣΥΝΑΓΕΡΜΟΣ: HR > 130"
+          }
+        ]
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "n1_start",
+      "type": "message",
+      "text": "Το μόνιτορ χτυπάει. Ο ασθενής είναι ανήσυχος, αναπνέει γρήγορα και η HR είναι 145.",
+      "next_node_id": "n2_initial_decision"
+    },
+    {
+      "id": "n2_initial_decision",
+      "type": "decision",
+      "text": "Ποια είναι η πρώτη σου ενέργεια;",
+      "options": [
+        {
+          "id": "opt_assess",
+          "label": "Άμεση αξιολόγηση ασθενούς",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.assessment_complete": true
+            },
+            "toast": "Ο ασθενής αναφέρει έντονη ανησυχία και δυσφορία."
+          },
+          "next_node_id": "n3_confirm_problem"
+        },
+        {
+          "id": "opt_monitor",
+          "label": "Έλεγχος κυματομορφής και HR στο μόνιτορ",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": 5,
+            "state_update": {
+              "flags.hr_confirmed": true
+            },
+            "toast": "Η HR αυξήθηκε σταθερά τα τελευταία λεπτά."
+          },
+          "next_node_id": "n3_confirm_problem"
+        },
+        {
+          "id": "opt_ehr_first",
+          "label": "Έλεγχος EHR πριν μιλήσεις στον ασθενή",
+          "target_hotspot": "hs_ehr",
+          "effects": {
+            "score_delta": -5,
+            "toast": "Πρώτα χρειάζεται άμεση αξιολόγηση λόγω ενεργού συναγερμού."
+          },
+          "next_node_id": "n3_confirm_problem"
+        }
+      ],
+      "timeout": {
+        "seconds": 30,
+        "on_timeout_effects": {
+          "vitals_update": {
+            "hr": 155,
+            "rr": 30
+          },
+          "score_delta": -10,
+          "toast": "Καθυστέρηση! Η HR ανέβηκε σε 155."
+        },
+        "next_node_id": "n3_confirm_problem"
+      }
+    },
+    {
+      "id": "n3_confirm_problem",
+      "type": "decision",
+      "text": "Η ταχυκαρδία επιβεβαιώνεται. Τι ελέγχεις τώρα;",
+      "options": [
+        {
+          "id": "opt_check_pain",
+          "label": "Έλεγχος πόνου / άγχους",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.pain_anxiety_checked": true
+            },
+            "toast": "Ο ασθενής αναφέρει πόνο και φόβο."
+          },
+          "next_node_id": "n4_intervention"
+        },
+        {
+          "id": "opt_check_meds",
+          "label": "Έλεγχος διαθέσιμων οδηγιών στο τροχήλατο",
+          "target_hotspot": "hs_medication_cart",
+          "effects": {
+            "score_delta": 5,
+            "toast": "Ελέγχεις τις οδηγίες πριν από οποιαδήποτε ενέργεια."
+          },
+          "next_node_id": "n4_intervention"
+        },
+        {
+          "id": "opt_ignore",
+          "label": "Σίγαση alarm και αναμονή",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -20,
+            "vitals_update": {
+              "hr": 160,
+              "rr": 32
+            },
+            "toast": "Κρίσιμο λάθος. Η HR συνεχίζει να αυξάνεται."
+          },
+          "next_node_id": "n4_intervention"
+        }
+      ]
+    },
+    {
+      "id": "n4_intervention",
+      "type": "decision",
+      "text": "Ποια ενέργεια επιλέγεις;",
+      "options": [
+        {
+          "id": "opt_reassure_position",
+          "label": "Καθησυχασμός, άνετη θέση και επανέλεγχος HR",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 20,
+            "state_update": {
+              "flags.intervention_started": true
+            },
+            "vitals_update": {
+              "hr": 125,
+              "rr": 22
+            },
+            "toast": "Ο ασθενής ηρεμεί και η HR μειώνεται."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        },
+        {
+          "id": "opt_call_direct",
+          "label": "Άμεση κλήση ιατρού",
+          "target_hotspot": "hs_call",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.escalation_complete": true
+            },
+            "toast": "Ο ιατρός ενημερώθηκε για την ταχυκαρδία."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        },
+        {
+          "id": "opt_do_nothing",
+          "label": "Καμία παρέμβαση",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -25,
+            "vitals_update": {
+              "hr": 165,
+              "rr": 34
+            },
+            "toast": "Κρίσιμο λάθος. Ο ασθενής επιδεινώνεται."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        }
+      ]
+    },
+    {
+      "id": "n5_gate_documentation_1",
+      "type": "gate",
+      "text": "GATE: Τεκμηρίωση ταχυκαρδίας και παρέμβασης.",
+      "description": "Η ροή μπλοκάρει μέχρι να συμπληρωθούν τα απαιτούμενα πεδία στο EHR.",
+      "gate_requirements": {
+        "target_hotspot": "hs_ehr",
+        "required_forms": [
+          {
+            "form_id": "assessment_form",
+            "fields": [
+              "observation",
+              "heart_rate_value",
+              "pain_score"
+            ]
+          },
+          {
+            "form_id": "intervention_form",
+            "fields": [
+              "action",
+              "pain_anxiety_check",
+              "hr_recheck"
+            ]
+          }
+        ]
+      },
+      "feedback_blocked": "Πρέπει να τεκμηριώσεις HR, συμπτώματα και παρέμβαση.",
+      "feedback_success": "Η τεκμηρίωση αποθηκεύτηκε.",
+      "effects_on_pass": {
+        "state_update": {
+          "flags.documentation_1_complete": true
+        },
+        "score_delta": 10
+      },
+      "next_node_id": "n6_reassessment"
+    },
+    {
+      "id": "n6_reassessment",
+      "type": "message",
+      "text": "5 λεπτά αργότερα... Η HR είναι 125 και ο ασθενής δείχνει πιο ήρεμος.",
+      "next_node_id": "n7_escalation_decision"
+    },
+    {
+      "id": "n7_escalation_decision",
+      "type": "decision",
+      "text": "Πρέπει να ενημερωθεί ο ιατρός για το επεισόδιο;",
+      "options": [
+        {
+          "id": "opt_call_doc",
+          "label": "Κλήση ιατρού / κλιμάκωση",
+          "target_hotspot": "hs_call",
+          "effects": {
+            "state_update": {
+              "flags.escalation_complete": true
+            },
+            "score_delta": 10,
+            "toast": "Ο εφημερεύων ιατρός ενημερώθηκε."
+          },
+          "next_node_id": "n8_gate_documentation_2"
+        },
+        {
+          "id": "opt_monitor_only",
+          "label": "Συνέχιση παρακολούθησης χωρίς κλιμάκωση",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -5,
+            "toast": "Συνεχίζεις την παρακολούθηση, αλλά η κλιμάκωση θα ήταν ασφαλέστερη επιλογή."
+          },
+          "next_node_id": "n9_end_scenario"
+        }
+      ]
+    },
+    {
+      "id": "n8_gate_documentation_2",
+      "type": "gate",
+      "text": "GATE: Καταγραφή επικοινωνίας.",
+      "description": "Κατέγραψε την επικοινωνία με τον ιατρό στο Communication Log.",
+      "gate_requirements": {
+        "target_hotspot": "hs_ehr",
+        "required_forms": [
+          {
+            "form_id": "communication_log",
+            "fields": [
+              "recipient",
+              "reason",
+              "outcome"
+            ]
+          }
+        ]
+      },
+      "feedback_blocked": "Εκκρεμεί η καταγραφή επικοινωνίας στο EHR.",
+      "feedback_success": "Η επικοινωνία καταγράφηκε.",
+      "effects_on_pass": {
+        "state_update": {
+          "flags.documentation_2_complete": true
+        },
+        "score_delta": 5
+      },
+      "next_node_id": "n9_end_scenario"
+    },
+    {
+      "id": "n9_end_scenario",
+      "type": "end",
+      "text": "Το σενάριο ταχυκαρδίας ολοκληρώθηκε.",
+      "debrief_config": {
+        "show_score": true,
+        "show_decision_path": true,
+        "highlight_missed_docs": true,
+        "export_log": true
+      }
+    }
+  ],
+  "logging": {
+    "enabled": true,
+    "log_events": [
+      "NODE_ENTER",
+      "HOTSPOT_INTERACTION",
+      "OPTION_SELECTED",
+      "EHR_SUBMIT",
+      "VITALS_CHANGE"
+    ],
+    "export_format": "JSON"
+  }
+}

@@ -1,0 +1,396 @@
+{
+  "schema_version": "1.0",
+  "scenario_meta": {
+    "id": "icu_scenario_hypothermia_v1",
+    "title": "ΜΕΘ: Υποθερμία μετά από Επέμβαση",
+    "description": "Σενάριο χαμηλής θερμοκρασίας σε ασθενή μετά από επέμβαση με χρήση θερμαντικών μέτρων.",
+    "estimated_duration_minutes": 8,
+    "difficulty": "Intermediate",
+    "learning_goals": [
+      "Αναγνώριση υποθερμίας",
+      "Χρήση θερμαντικής κουβέρτας",
+      "Επανέλεγχος θερμοκρασίας",
+      "Τεκμηρίωση στο EHR"
+    ]
+  },
+  "initial_state": {
+    "time_elapsed": 0,
+    "current_score": 100,
+    "flags": {
+      "assessment_complete": false,
+      "temperature_confirmed": false,
+      "warming_started": false,
+      "documentation_1_complete": false,
+      "escalation_complete": false,
+      "documentation_2_complete": false
+    },
+    "vitals": {
+      "hr": 58,
+      "spo2": 97,
+      "rr": 16,
+      "bp": "110/70",
+      "temp": 35.0
+    },
+    "ui": {
+      "active_hotspots": [
+        "hs_monitor",
+        "hs_patient",
+        "hs_warming_blanket",
+        "hs_ehr",
+        "hs_call"
+      ],
+      "monitor_alert": true
+    }
+  },
+  "hotspots": [
+    {
+      "id": "hs_monitor",
+      "label": "Μόνιτορ Ζωτικών Λειτουργιών"
+    },
+    {
+      "id": "hs_patient",
+      "label": "Ασθενής / Κλίνη"
+    },
+    {
+      "id": "hs_warming_blanket",
+      "label": "Θερμαντική Κουβέρτα"
+    },
+    {
+      "id": "hs_ehr",
+      "label": "Τερματικό EHR / e-Health"
+    },
+    {
+      "id": "hs_call",
+      "label": "Κουμπί Κλήσης"
+    }
+  ],
+  "ehr_config": {
+    "forms": {
+      "assessment_form": {
+        "title": "Κλινική Αξιολόγηση",
+        "fields": [
+          "observation",
+          "consciousness",
+          "temperature_value",
+          "skin_condition"
+        ]
+      },
+      "intervention_form": {
+        "title": "Παρέμβαση Υποθερμίας",
+        "fields": [
+          "action",
+          "warming_device",
+          "temperature_recheck"
+        ]
+      },
+      "communication_log": {
+        "title": "Ημερολόγιο Επικοινωνίας",
+        "fields": [
+          "recipient",
+          "reason",
+          "outcome"
+        ]
+      }
+    }
+  },
+  "rules": {
+    "global_rules": [
+      {
+        "id": "rule_low_temp_alarm",
+        "condition": {
+          "vitals.temp": {
+            "lt": 35.5
+          }
+        },
+        "effects": [
+          {
+            "type": "ui_visual",
+            "target": "hs_monitor",
+            "state": "blue_warning"
+          },
+          {
+            "type": "ui_toast",
+            "style": "warning",
+            "message": "ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Θερμοκρασία < 35.5°C"
+          }
+        ]
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "n1_start",
+      "type": "message",
+      "text": "Μετά από επέμβαση, ο ασθενής εμφανίζει θερμοκρασία 35.0°C και HR 58. Το μόνιτορ εμφανίζει προειδοποίηση.",
+      "next_node_id": "n2_initial_decision"
+    },
+    {
+      "id": "n2_initial_decision",
+      "type": "decision",
+      "text": "Ποια είναι η πρώτη σου ενέργεια;",
+      "options": [
+        {
+          "id": "opt_assess",
+          "label": "Αξιολόγηση ασθενούς",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.assessment_complete": true
+            },
+            "toast": "Ο ασθενής είναι κρύος στην αφή και τρέμει ελαφρά."
+          },
+          "next_node_id": "n3_confirm_problem"
+        },
+        {
+          "id": "opt_monitor",
+          "label": "Επιβεβαίωση θερμοκρασίας στο μόνιτορ",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": 5,
+            "state_update": {
+              "flags.temperature_confirmed": true
+            },
+            "toast": "Η θερμοκρασία παραμένει χαμηλή."
+          },
+          "next_node_id": "n3_confirm_problem"
+        },
+        {
+          "id": "opt_call_first",
+          "label": "Κλήση ιατρού χωρίς αρχική αξιολόγηση",
+          "target_hotspot": "hs_call",
+          "effects": {
+            "score_delta": 0,
+            "state_update": {
+              "flags.escalation_complete": true
+            },
+            "toast": "Η κλήση έγινε, αλλά πρώτα χρειάζεται αξιολόγηση και ασφαλής παρέμβαση."
+          },
+          "next_node_id": "n3_confirm_problem"
+        }
+      ],
+      "timeout": {
+        "seconds": 30,
+        "on_timeout_effects": {
+          "vitals_update": {
+            "temp": 34.7,
+            "hr": 54
+          },
+          "score_delta": -10,
+          "toast": "Καθυστέρηση! Η θερμοκρασία έπεσε στους 34.7°C."
+        },
+        "next_node_id": "n3_confirm_problem"
+      }
+    },
+    {
+      "id": "n3_confirm_problem",
+      "type": "decision",
+      "text": "Η υποθερμία επιβεβαιώνεται. Ποιο στοιχείο ελέγχεις;",
+      "options": [
+        {
+          "id": "opt_check_blanket",
+          "label": "Έλεγχος διαθέσιμης θερμαντικής κουβέρτας",
+          "target_hotspot": "hs_warming_blanket",
+          "effects": {
+            "score_delta": 10,
+            "toast": "Η θερμαντική κουβέρτα είναι διαθέσιμη."
+          },
+          "next_node_id": "n4_intervention"
+        },
+        {
+          "id": "opt_reassess_skin",
+          "label": "Έλεγχος δέρματος και άνεσης ασθενούς",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 5,
+            "toast": "Ο ασθενής είναι ψυχρός και χρειάζεται θέρμανση."
+          },
+          "next_node_id": "n4_intervention"
+        },
+        {
+          "id": "opt_wait",
+          "label": "Αναμονή",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -20,
+            "vitals_update": {
+              "temp": 34.5,
+              "hr": 52
+            },
+            "toast": "Λάθος. Η θερμοκρασία συνεχίζει να πέφτει."
+          },
+          "next_node_id": "n4_intervention"
+        }
+      ]
+    },
+    {
+      "id": "n4_intervention",
+      "type": "decision",
+      "text": "Ποια παρέμβαση ξεκινάς;",
+      "options": [
+        {
+          "id": "opt_start_warming",
+          "label": "Ενεργοποίηση θερμαντικής κουβέρτας και επανέλεγχος",
+          "target_hotspot": "hs_warming_blanket",
+          "effects": {
+            "score_delta": 20,
+            "state_update": {
+              "flags.warming_started": true
+            },
+            "vitals_update": {
+              "temp": 36.0,
+              "hr": 65
+            },
+            "toast": "Η θέρμανση ξεκίνησε και η θερμοκρασία βελτιώνεται."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        },
+        {
+          "id": "opt_extra_blanket_only",
+          "label": "Κάλυψη ασθενούς χωρίς ενεργό επανέλεγχο",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 5,
+            "toast": "Η άνεση βελτιώνεται, αλλά χρειάζεται επανέλεγχος θερμοκρασίας."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        },
+        {
+          "id": "opt_no_intervention",
+          "label": "Καμία παρέμβαση",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -25,
+            "vitals_update": {
+              "temp": 34.3,
+              "hr": 50
+            },
+            "toast": "Κρίσιμο λάθος. Η υποθερμία επιδεινώνεται."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        }
+      ]
+    },
+    {
+      "id": "n5_gate_documentation_1",
+      "type": "gate",
+      "text": "GATE: Τεκμηρίωση υποθερμίας και θερμαντικών μέτρων.",
+      "description": "Η ροή μπλοκάρει μέχρι να συμπληρωθούν τα απαιτούμενα πεδία στο EHR.",
+      "gate_requirements": {
+        "target_hotspot": "hs_ehr",
+        "required_forms": [
+          {
+            "form_id": "assessment_form",
+            "fields": [
+              "observation",
+              "temperature_value"
+            ]
+          },
+          {
+            "form_id": "intervention_form",
+            "fields": [
+              "action",
+              "warming_device",
+              "temperature_recheck"
+            ]
+          }
+        ]
+      },
+      "feedback_blocked": "Πρέπει να τεκμηριώσεις θερμοκρασία και θερμαντικά μέτρα.",
+      "feedback_success": "Η τεκμηρίωση αποθηκεύτηκε.",
+      "effects_on_pass": {
+        "state_update": {
+          "flags.documentation_1_complete": true
+        },
+        "score_delta": 10
+      },
+      "next_node_id": "n6_reassessment"
+    },
+    {
+      "id": "n6_reassessment",
+      "type": "message",
+      "text": "10 λεπτά αργότερα... Η θερμοκρασία ανέβηκε στους 36.0°C και ο ασθενής φαίνεται πιο άνετος.",
+      "next_node_id": "n7_escalation_decision"
+    },
+    {
+      "id": "n7_escalation_decision",
+      "type": "decision",
+      "text": "Χρειάζεται ενημέρωση ιατρού για το επεισόδιο;",
+      "options": [
+        {
+          "id": "opt_call_doc",
+          "label": "Κλήση ιατρού / κλιμάκωση",
+          "target_hotspot": "hs_call",
+          "effects": {
+            "state_update": {
+              "flags.escalation_complete": true
+            },
+            "score_delta": 10,
+            "toast": "Ο εφημερεύων ιατρός ενημερώθηκε."
+          },
+          "next_node_id": "n8_gate_documentation_2"
+        },
+        {
+          "id": "opt_monitor_only",
+          "label": "Συνέχιση παρακολούθησης χωρίς κλιμάκωση",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -5,
+            "toast": "Συνεχίζεις την παρακολούθηση, αλλά η κλιμάκωση θα ήταν ασφαλέστερη επιλογή."
+          },
+          "next_node_id": "n9_end_scenario"
+        }
+      ]
+    },
+    {
+      "id": "n8_gate_documentation_2",
+      "type": "gate",
+      "text": "GATE: Καταγραφή επικοινωνίας.",
+      "description": "Κατέγραψε την επικοινωνία με τον ιατρό στο Communication Log.",
+      "gate_requirements": {
+        "target_hotspot": "hs_ehr",
+        "required_forms": [
+          {
+            "form_id": "communication_log",
+            "fields": [
+              "recipient",
+              "reason",
+              "outcome"
+            ]
+          }
+        ]
+      },
+      "feedback_blocked": "Εκκρεμεί η καταγραφή επικοινωνίας στο EHR.",
+      "feedback_success": "Η επικοινωνία καταγράφηκε.",
+      "effects_on_pass": {
+        "state_update": {
+          "flags.documentation_2_complete": true
+        },
+        "score_delta": 5
+      },
+      "next_node_id": "n9_end_scenario"
+    },
+    {
+      "id": "n9_end_scenario",
+      "type": "end",
+      "text": "Το σενάριο υποθερμίας ολοκληρώθηκε.",
+      "debrief_config": {
+        "show_score": true,
+        "show_decision_path": true,
+        "highlight_missed_docs": true,
+        "export_log": true
+      }
+    }
+  ],
+  "logging": {
+    "enabled": true,
+    "log_events": [
+      "NODE_ENTER",
+      "HOTSPOT_INTERACTION",
+      "OPTION_SELECTED",
+      "EHR_SUBMIT",
+      "VITALS_CHANGE"
+    ],
+    "export_format": "JSON"
+  }
+}

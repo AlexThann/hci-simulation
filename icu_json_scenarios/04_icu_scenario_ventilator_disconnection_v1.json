@@ -1,0 +1,400 @@
+{
+  "schema_version": "1.0",
+  "scenario_meta": {
+    "id": "icu_scenario_ventilator_disconnection_v1",
+    "title": "ΜΕΘ: Αποσύνδεση Αναπνευστήρα",
+    "description": "Σενάριο πτώσης SpO2 λόγω αποσύνδεσης κυκλώματος αναπνευστήρα.",
+    "estimated_duration_minutes": 8,
+    "difficulty": "Intermediate",
+    "learning_goals": [
+      "Αναγνώριση alarm αναπνευστήρα",
+      "Έλεγχος κυκλώματος",
+      "Επανασύνδεση και επανεκτίμηση",
+      "Τεκμηρίωση συμβάντος"
+    ]
+  },
+  "initial_state": {
+    "time_elapsed": 0,
+    "current_score": 100,
+    "flags": {
+      "assessment_complete": false,
+      "ventilator_checked": false,
+      "circuit_reconnected": false,
+      "documentation_1_complete": false,
+      "escalation_complete": false,
+      "documentation_2_complete": false
+    },
+    "vitals": {
+      "hr": 118,
+      "spo2": 84,
+      "rr": 30,
+      "bp": "128/78",
+      "temp": 37.1
+    },
+    "ui": {
+      "active_hotspots": [
+        "hs_monitor",
+        "hs_patient",
+        "hs_ventilator",
+        "hs_ehr",
+        "hs_call"
+      ],
+      "monitor_alert": true
+    }
+  },
+  "hotspots": [
+    {
+      "id": "hs_monitor",
+      "label": "Μόνιτορ Ζωτικών Λειτουργιών"
+    },
+    {
+      "id": "hs_patient",
+      "label": "Ασθενής / Κλίνη"
+    },
+    {
+      "id": "hs_ventilator",
+      "label": "Αναπνευστήρας"
+    },
+    {
+      "id": "hs_ehr",
+      "label": "Τερματικό EHR / e-Health"
+    },
+    {
+      "id": "hs_call",
+      "label": "Κουμπί Κλήσης"
+    }
+  ],
+  "ehr_config": {
+    "forms": {
+      "assessment_form": {
+        "title": "Κλινική Αξιολόγηση",
+        "fields": [
+          "observation",
+          "consciousness",
+          "spo2_value",
+          "breathing_observation"
+        ]
+      },
+      "intervention_form": {
+        "title": "Παρέμβαση Αναπνευστήρα",
+        "fields": [
+          "device",
+          "circuit_status",
+          "action",
+          "spo2_recheck"
+        ]
+      },
+      "communication_log": {
+        "title": "Ημερολόγιο Επικοινωνίας",
+        "fields": [
+          "recipient",
+          "reason",
+          "outcome"
+        ]
+      }
+    }
+  },
+  "rules": {
+    "global_rules": [
+      {
+        "id": "rule_low_spo2_alarm",
+        "condition": {
+          "vitals.spo2": {
+            "lt": 90
+          }
+        },
+        "effects": [
+          {
+            "type": "ui_visual",
+            "target": "hs_monitor",
+            "state": "blinking_red"
+          },
+          {
+            "type": "ui_toast",
+            "style": "danger",
+            "message": "ΣΥΝΑΓΕΡΜΟΣ: SpO2 < 90%"
+          }
+        ]
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "n1_start",
+      "type": "message",
+      "text": "Το SpO2 πέφτει στο 84% και ακούγεται alarm από τον αναπνευστήρα. Ο ασθενής φαίνεται δυσπνοϊκός.",
+      "next_node_id": "n2_initial_decision"
+    },
+    {
+      "id": "n2_initial_decision",
+      "type": "decision",
+      "text": "Ποια είναι η πρώτη σου ενέργεια;",
+      "options": [
+        {
+          "id": "opt_assess",
+          "label": "Άμεση αξιολόγηση ασθενούς",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.assessment_complete": true
+            },
+            "toast": "Ο ασθενής έχει δυσκολία στην αναπνοή."
+          },
+          "next_node_id": "n3_confirm_problem"
+        },
+        {
+          "id": "opt_check_vent",
+          "label": "Έλεγχος αναπνευστήρα",
+          "target_hotspot": "hs_ventilator",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.ventilator_checked": true
+            },
+            "toast": "Ο αναπνευστήρας εμφανίζει alarm κυκλώματος."
+          },
+          "next_node_id": "n3_confirm_problem"
+        },
+        {
+          "id": "opt_monitor_only",
+          "label": "Μόνο έλεγχος monitor",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": 0,
+            "toast": "Επιβεβαιώνεις χαμηλό SpO2, αλλά πρέπει να ελέγξεις και τον αναπνευστήρα."
+          },
+          "next_node_id": "n3_confirm_problem"
+        }
+      ],
+      "timeout": {
+        "seconds": 20,
+        "on_timeout_effects": {
+          "vitals_update": {
+            "spo2": 78,
+            "hr": 130,
+            "rr": 34
+          },
+          "score_delta": -15,
+          "toast": "Καθυστέρηση! Το SpO2 έπεσε στο 78%."
+        },
+        "next_node_id": "n3_confirm_problem"
+      }
+    },
+    {
+      "id": "n3_confirm_problem",
+      "type": "decision",
+      "text": "Υπάρχει πιθανό πρόβλημα στο κύκλωμα. Τι κάνεις;",
+      "options": [
+        {
+          "id": "opt_inspect_circuit",
+          "label": "Έλεγχος σωλήνων και συνδέσεων",
+          "target_hotspot": "hs_ventilator",
+          "effects": {
+            "score_delta": 15,
+            "toast": "Βρίσκεις αποσύνδεση σε σωλήνα του κυκλώματος."
+          },
+          "next_node_id": "n4_intervention"
+        },
+        {
+          "id": "opt_reposition_patient",
+          "label": "Έλεγχος θέσης ασθενούς",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 5,
+            "toast": "Η θέση είναι αποδεκτή, αλλά το alarm παραμένει."
+          },
+          "next_node_id": "n4_intervention"
+        },
+        {
+          "id": "opt_silence",
+          "label": "Σίγαση alarm χωρίς έλεγχο",
+          "target_hotspot": "hs_ventilator",
+          "effects": {
+            "score_delta": -20,
+            "vitals_update": {
+              "spo2": 75,
+              "hr": 138
+            },
+            "toast": "Κρίσιμο λάθος. Το πρόβλημα δεν λύθηκε."
+          },
+          "next_node_id": "n4_intervention"
+        }
+      ]
+    },
+    {
+      "id": "n4_intervention",
+      "type": "decision",
+      "text": "Ποια παρέμβαση εκτελείς;",
+      "options": [
+        {
+          "id": "opt_reconnect",
+          "label": "Επανασύνδεση κυκλώματος και έλεγχος SpO2",
+          "target_hotspot": "hs_ventilator",
+          "effects": {
+            "score_delta": 25,
+            "state_update": {
+              "flags.circuit_reconnected": true
+            },
+            "vitals_update": {
+              "spo2": 94,
+              "hr": 105,
+              "rr": 24
+            },
+            "toast": "Το κύκλωμα επανασυνδέθηκε και το SpO2 βελτιώνεται."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        },
+        {
+          "id": "opt_call_without_fix",
+          "label": "Κλήση ιατρού χωρίς επανασύνδεση",
+          "target_hotspot": "hs_call",
+          "effects": {
+            "score_delta": 0,
+            "state_update": {
+              "flags.escalation_complete": true
+            },
+            "toast": "Ο ιατρός ενημερώθηκε, αλλά η άμεση διόρθωση του κυκλώματος ήταν απαραίτητη."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        },
+        {
+          "id": "opt_wait",
+          "label": "Αναμονή",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -25,
+            "vitals_update": {
+              "spo2": 72,
+              "hr": 145
+            },
+            "toast": "Κρίσιμο λάθος. Ο αποκορεσμός επιδεινώνεται."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        }
+      ]
+    },
+    {
+      "id": "n5_gate_documentation_1",
+      "type": "gate",
+      "text": "GATE: Τεκμηρίωση συμβάντος αναπνευστήρα.",
+      "description": "Η ροή μπλοκάρει μέχρι να συμπληρωθούν τα απαιτούμενα πεδία στο EHR.",
+      "gate_requirements": {
+        "target_hotspot": "hs_ehr",
+        "required_forms": [
+          {
+            "form_id": "assessment_form",
+            "fields": [
+              "observation",
+              "spo2_value"
+            ]
+          },
+          {
+            "form_id": "intervention_form",
+            "fields": [
+              "device",
+              "circuit_status",
+              "action",
+              "spo2_recheck"
+            ]
+          }
+        ]
+      },
+      "feedback_blocked": "Πρέπει να καταγράψεις τον έλεγχο και την παρέμβαση στον αναπνευστήρα.",
+      "feedback_success": "Η τεκμηρίωση αποθηκεύτηκε.",
+      "effects_on_pass": {
+        "state_update": {
+          "flags.documentation_1_complete": true
+        },
+        "score_delta": 10
+      },
+      "next_node_id": "n6_reassessment"
+    },
+    {
+      "id": "n6_reassessment",
+      "type": "message",
+      "text": "3 λεπτά αργότερα... Το SpO2 είναι 94% και το alarm έχει σταματήσει.",
+      "next_node_id": "n7_escalation_decision"
+    },
+    {
+      "id": "n7_escalation_decision",
+      "type": "decision",
+      "text": "Χρειάζεται αναφορά του συμβάντος;",
+      "options": [
+        {
+          "id": "opt_call_doc",
+          "label": "Κλήση ιατρού / κλιμάκωση",
+          "target_hotspot": "hs_call",
+          "effects": {
+            "state_update": {
+              "flags.escalation_complete": true
+            },
+            "score_delta": 10,
+            "toast": "Ο εφημερεύων ιατρός ενημερώθηκε."
+          },
+          "next_node_id": "n8_gate_documentation_2"
+        },
+        {
+          "id": "opt_monitor_only",
+          "label": "Συνέχιση παρακολούθησης χωρίς κλιμάκωση",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -5,
+            "toast": "Συνεχίζεις την παρακολούθηση, αλλά η κλιμάκωση θα ήταν ασφαλέστερη επιλογή."
+          },
+          "next_node_id": "n9_end_scenario"
+        }
+      ]
+    },
+    {
+      "id": "n8_gate_documentation_2",
+      "type": "gate",
+      "text": "GATE: Καταγραφή επικοινωνίας.",
+      "description": "Κατέγραψε την επικοινωνία με τον ιατρό στο Communication Log.",
+      "gate_requirements": {
+        "target_hotspot": "hs_ehr",
+        "required_forms": [
+          {
+            "form_id": "communication_log",
+            "fields": [
+              "recipient",
+              "reason",
+              "outcome"
+            ]
+          }
+        ]
+      },
+      "feedback_blocked": "Εκκρεμεί η καταγραφή επικοινωνίας στο EHR.",
+      "feedback_success": "Η επικοινωνία καταγράφηκε.",
+      "effects_on_pass": {
+        "state_update": {
+          "flags.documentation_2_complete": true
+        },
+        "score_delta": 5
+      },
+      "next_node_id": "n9_end_scenario"
+    },
+    {
+      "id": "n9_end_scenario",
+      "type": "end",
+      "text": "Το σενάριο αποσύνδεσης αναπνευστήρα ολοκληρώθηκε.",
+      "debrief_config": {
+        "show_score": true,
+        "show_decision_path": true,
+        "highlight_missed_docs": true,
+        "export_log": true
+      }
+    }
+  ],
+  "logging": {
+    "enabled": true,
+    "log_events": [
+      "NODE_ENTER",
+      "HOTSPOT_INTERACTION",
+      "OPTION_SELECTED",
+      "EHR_SUBMIT",
+      "VITALS_CHANGE"
+    ],
+    "export_format": "JSON"
+  }
+}

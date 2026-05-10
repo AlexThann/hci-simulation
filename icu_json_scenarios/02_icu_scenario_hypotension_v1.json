@@ -1,0 +1,432 @@
+{
+  "schema_version": "1.0",
+  "scenario_meta": {
+    "id": "icu_scenario_hypotension_v1",
+    "title": "ΜΕΘ: Απότομη Πτώση Αρτηριακής Πίεσης",
+    "description": "Σενάριο υπότασης με έλεγχο ασθενούς, αντλίας έγχυσης, παρέμβαση και τεκμηρίωση.",
+    "estimated_duration_minutes": 8,
+    "difficulty": "Intermediate",
+    "learning_goals": [
+      "Αναγνώριση χαμηλής πίεσης",
+      "Έλεγχος αντλίας/γραμμής",
+      "Τεκμηρίωση παρέμβασης",
+      "Κλιμάκωση σε ιατρό"
+    ]
+  },
+  "initial_state": {
+    "time_elapsed": 0,
+    "current_score": 100,
+    "flags": {
+      "assessment_complete": false,
+      "bp_confirmed": false,
+      "infusion_checked": false,
+      "intervention_started": false,
+      "documentation_1_complete": false,
+      "escalation_complete": false,
+      "documentation_2_complete": false
+    },
+    "vitals": {
+      "hr": 124,
+      "spo2": 97,
+      "rr": 23,
+      "bp": "82/50",
+      "bp_systolic": 82,
+      "bp_diastolic": 50,
+      "temp": 36.8
+    },
+    "ui": {
+      "active_hotspots": [
+        "hs_monitor",
+        "hs_patient",
+        "hs_infusion_pump",
+        "hs_ehr",
+        "hs_call"
+      ],
+      "monitor_alert": true
+    }
+  },
+  "hotspots": [
+    {
+      "id": "hs_monitor",
+      "label": "Μόνιτορ Ζωτικών Λειτουργιών"
+    },
+    {
+      "id": "hs_patient",
+      "label": "Ασθενής / Κλίνη"
+    },
+    {
+      "id": "hs_infusion_pump",
+      "label": "Αντλία Έγχυσης"
+    },
+    {
+      "id": "hs_ehr",
+      "label": "Τερματικό EHR / e-Health"
+    },
+    {
+      "id": "hs_call",
+      "label": "Κουμπί Κλήσης"
+    }
+  ],
+  "ehr_config": {
+    "forms": {
+      "assessment_form": {
+        "title": "Κλινική Αξιολόγηση",
+        "fields": [
+          "observation",
+          "skin_color",
+          "consciousness",
+          "bp_value"
+        ]
+      },
+      "intervention_form": {
+        "title": "Παρέμβαση Υπότασης",
+        "fields": [
+          "device",
+          "fluid_type",
+          "infusion_rate",
+          "bp_recheck"
+        ]
+      },
+      "communication_log": {
+        "title": "Ημερολόγιο Επικοινωνίας",
+        "fields": [
+          "recipient",
+          "reason",
+          "outcome"
+        ]
+      }
+    }
+  },
+  "rules": {
+    "global_rules": [
+      {
+        "id": "rule_low_bp_alarm",
+        "condition": {
+          "vitals.bp_systolic": {
+            "lt": 90
+          }
+        },
+        "effects": [
+          {
+            "type": "ui_visual",
+            "target": "hs_monitor",
+            "state": "blinking_red"
+          },
+          {
+            "type": "ui_toast",
+            "style": "danger",
+            "message": "ΣΥΝΑΓΕΡΜΟΣ: Συστολική πίεση < 90 mmHg"
+          }
+        ]
+      },
+      {
+        "id": "rule_tachycardia_warning",
+        "condition": {
+          "vitals.hr": {
+            "gt": 120
+          }
+        },
+        "effects": [
+          {
+            "type": "ui_visual",
+            "target": "hs_monitor",
+            "state": "yellow_warning"
+          },
+          {
+            "type": "ui_toast",
+            "style": "warning",
+            "message": "Προειδοποίηση: Ταχυκαρδία."
+          }
+        ]
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "n1_start",
+      "type": "message",
+      "text": "Βρίσκεστε στη ΜΕΘ. Το μόνιτορ δείχνει BP 82/50 και HR 124. Ο ασθενής φαίνεται ωχρός και αδύναμος.",
+      "next_node_id": "n2_initial_decision"
+    },
+    {
+      "id": "n2_initial_decision",
+      "type": "decision",
+      "text": "Ποια είναι η πρώτη σου ενέργεια;",
+      "options": [
+        {
+          "id": "opt_assess",
+          "label": "Άμεση αξιολόγηση ασθενούς",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.assessment_complete": true
+            },
+            "toast": "Ο ασθενής είναι ωχρός, ιδρωμένος και απαντά αργά."
+          },
+          "next_node_id": "n3_check_source"
+        },
+        {
+          "id": "opt_monitor",
+          "label": "Έλεγχος ιστορικού πίεσης στο μόνιτορ",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": 5,
+            "state_update": {
+              "flags.bp_confirmed": true
+            },
+            "toast": "Η πίεση έπεσε απότομα τα τελευταία λεπτά."
+          },
+          "next_node_id": "n3_check_source"
+        },
+        {
+          "id": "opt_ehr_first",
+          "label": "Άνοιγμα EHR χωρίς bedside έλεγχο",
+          "target_hotspot": "hs_ehr",
+          "effects": {
+            "score_delta": -5,
+            "toast": "Η καταγραφή είναι σημαντική, αλλά πρώτα χρειάζεται κλινική αξιολόγηση."
+          },
+          "next_node_id": "n3_check_source"
+        }
+      ],
+      "timeout": {
+        "seconds": 30,
+        "on_timeout_effects": {
+          "vitals_update": {
+            "bp": "76/48",
+            "bp_systolic": 76,
+            "bp_diastolic": 48,
+            "hr": 132
+          },
+          "score_delta": -10,
+          "toast": "Καθυστέρηση! Η πίεση έπεσε σε 76/48."
+        },
+        "next_node_id": "n3_check_source"
+      }
+    },
+    {
+      "id": "n3_check_source",
+      "type": "decision",
+      "text": "Τι ελέγχεις ως πιθανή άμεση αιτία;",
+      "options": [
+        {
+          "id": "opt_check_pump",
+          "label": "Έλεγχος αντλίας έγχυσης και γραμμής",
+          "target_hotspot": "hs_infusion_pump",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.infusion_checked": true
+            },
+            "toast": "Η αντλία έχει χαμηλή ροή και χρειάζεται ρύθμιση."
+          },
+          "next_node_id": "n4_intervention"
+        },
+        {
+          "id": "opt_reassess",
+          "label": "Επανεκτίμηση χρώματος και επιπέδου συνείδησης",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 5,
+            "toast": "Ο ασθενής παραμένει ωχρός αλλά συνεργάσιμος."
+          },
+          "next_node_id": "n4_intervention"
+        },
+        {
+          "id": "opt_wait",
+          "label": "Αναμονή χωρίς παρέμβαση",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "vitals_update": {
+              "bp": "70/45",
+              "bp_systolic": 70,
+              "bp_diastolic": 45,
+              "hr": 140
+            },
+            "score_delta": -20,
+            "toast": "Κρίσιμο λάθος. Η υπόταση επιδεινώνεται."
+          },
+          "next_node_id": "n4_intervention"
+        }
+      ]
+    },
+    {
+      "id": "n4_intervention",
+      "type": "decision",
+      "text": "Ποια παρέμβαση εκτελείς;",
+      "options": [
+        {
+          "id": "opt_adjust_fluids",
+          "label": "Ρύθμιση αντλίας / έναρξη υγρών σύμφωνα με οδηγία",
+          "target_hotspot": "hs_infusion_pump",
+          "effects": {
+            "score_delta": 20,
+            "state_update": {
+              "flags.intervention_started": true
+            },
+            "vitals_update": {
+              "bp": "96/62",
+              "bp_systolic": 96,
+              "bp_diastolic": 62,
+              "hr": 110
+            },
+            "toast": "Η ροή αποκαταστάθηκε. Η πίεση αρχίζει να βελτιώνεται."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        },
+        {
+          "id": "opt_call_only",
+          "label": "Κλήση ιατρού χωρίς άλλη ενέργεια",
+          "target_hotspot": "hs_call",
+          "effects": {
+            "score_delta": 5,
+            "state_update": {
+              "flags.escalation_complete": true
+            },
+            "toast": "Ο ιατρός ενημερώθηκε, αλλά χρειαζόταν και άμεση bedside παρέμβαση."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        },
+        {
+          "id": "opt_no_action",
+          "label": "Καμία αλλαγή — συνεχίζω παρακολούθηση",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "vitals_update": {
+              "bp": "68/42",
+              "bp_systolic": 68,
+              "bp_diastolic": 42,
+              "hr": 145
+            },
+            "score_delta": -25,
+            "toast": "Κρίσιμο λάθος. Η πίεση παραμένει επικίνδυνα χαμηλή."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        }
+      ]
+    },
+    {
+      "id": "n5_gate_documentation_1",
+      "type": "gate",
+      "text": "GATE: Τεκμηρίωση υπότασης και παρέμβασης.",
+      "description": "Η συνέχεια μπλοκάρει μέχρι να καταγραφούν αξιολόγηση και παρέμβαση.",
+      "gate_requirements": {
+        "target_hotspot": "hs_ehr",
+        "required_forms": [
+          {
+            "form_id": "assessment_form",
+            "fields": [
+              "observation",
+              "bp_value"
+            ]
+          },
+          {
+            "form_id": "intervention_form",
+            "fields": [
+              "device",
+              "fluid_type",
+              "infusion_rate",
+              "bp_recheck"
+            ]
+          }
+        ]
+      },
+      "feedback_blocked": "Πρέπει να συμπληρωθούν τα πεδία υπότασης στο EHR.",
+      "feedback_success": "Η τεκμηρίωση αποθηκεύτηκε.",
+      "effects_on_pass": {
+        "state_update": {
+          "flags.documentation_1_complete": true
+        },
+        "score_delta": 10
+      },
+      "next_node_id": "n6_reassessment"
+    },
+    {
+      "id": "n6_reassessment",
+      "type": "message",
+      "text": "5 λεπτά αργότερα... Η BP είναι 96/62 και η HR 110. Ο ασθενής είναι πιο σταθερός αλλά χρειάζεται ενημέρωση ιατρού.",
+      "next_node_id": "n7_escalation_decision"
+    },
+    {
+      "id": "n7_escalation_decision",
+      "type": "decision",
+      "text": "Χρειάζεται κλιμάκωση;",
+      "options": [
+        {
+          "id": "opt_call_doc",
+          "label": "Κλήση ιατρού και αναφορά επεισοδίου υπότασης",
+          "target_hotspot": "hs_call",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.escalation_complete": true
+            },
+            "toast": "Ο ιατρός ενημερώθηκε για την υπόταση και την παρέμβαση."
+          },
+          "next_node_id": "n8_gate_documentation_2"
+        },
+        {
+          "id": "opt_monitor_only",
+          "label": "Μόνο παρακολούθηση",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -5,
+            "toast": "Η παρακολούθηση συνεχίζεται, αλλά η ενημέρωση ιατρού ήταν αναμενόμενη."
+          },
+          "next_node_id": "n9_end_scenario"
+        }
+      ]
+    },
+    {
+      "id": "n8_gate_documentation_2",
+      "type": "gate",
+      "text": "GATE: Καταγραφή επικοινωνίας.",
+      "description": "Καταγραφή της κλήσης στο Communication Log.",
+      "gate_requirements": {
+        "target_hotspot": "hs_ehr",
+        "required_forms": [
+          {
+            "form_id": "communication_log",
+            "fields": [
+              "recipient",
+              "reason",
+              "outcome"
+            ]
+          }
+        ]
+      },
+      "feedback_blocked": "Εκκρεμεί η καταγραφή κλήσης στο EHR.",
+      "feedback_success": "Η επικοινωνία καταγράφηκε.",
+      "effects_on_pass": {
+        "state_update": {
+          "flags.documentation_2_complete": true
+        },
+        "score_delta": 5
+      },
+      "next_node_id": "n9_end_scenario"
+    },
+    {
+      "id": "n9_end_scenario",
+      "type": "end",
+      "text": "Το σενάριο υπότασης ολοκληρώθηκε.",
+      "debrief_config": {
+        "show_score": true,
+        "show_decision_path": true,
+        "highlight_missed_docs": true,
+        "export_log": true
+      }
+    }
+  ],
+  "logging": {
+    "enabled": true,
+    "log_events": [
+      "NODE_ENTER",
+      "HOTSPOT_INTERACTION",
+      "OPTION_SELECTED",
+      "EHR_SUBMIT",
+      "VITALS_CHANGE"
+    ],
+    "export_format": "JSON"
+  }
+}
