@@ -1,0 +1,423 @@
+{
+  "schema_version": "1.0",
+  "scenario_meta": {
+    "id": "icu_scenario_vitals_deterioration_v1",
+    "title": "ΜΕΘ: Επείγουσα Κλήση λόγω Επιδείνωσης Ζωτικών",
+    "description": "Σενάριο πολλαπλής επιδείνωσης ζωτικών με άμεση αξιολόγηση, υποστήριξη και κλιμάκωση.",
+    "estimated_duration_minutes": 8,
+    "difficulty": "Intermediate",
+    "learning_goals": [
+      "Αναγνώριση συνολικής επιδείνωσης",
+      "Προτεραιοποίηση ενεργειών",
+      "Κλήση ιατρού",
+      "Πλήρης καταγραφή συμβάντος"
+    ]
+  },
+  "initial_state": {
+    "time_elapsed": 0,
+    "current_score": 100,
+    "flags": {
+      "assessment_complete": false,
+      "vitals_confirmed": false,
+      "oxygen_checked": false,
+      "support_started": false,
+      "documentation_1_complete": false,
+      "escalation_complete": false,
+      "documentation_2_complete": false
+    },
+    "vitals": {
+      "hr": 135,
+      "spo2": 91,
+      "rr": 30,
+      "bp": "90/60",
+      "bp_systolic": 90,
+      "bp_diastolic": 60,
+      "temp": 38.2
+    },
+    "ui": {
+      "active_hotspots": [
+        "hs_monitor",
+        "hs_patient",
+        "hs_ventilator",
+        "hs_ehr",
+        "hs_call"
+      ],
+      "monitor_alert": true
+    }
+  },
+  "hotspots": [
+    {
+      "id": "hs_monitor",
+      "label": "Μόνιτορ Ζωτικών Λειτουργιών"
+    },
+    {
+      "id": "hs_patient",
+      "label": "Ασθενής / Κλίνη"
+    },
+    {
+      "id": "hs_ventilator",
+      "label": "Παροχή Οξυγόνου / Αναπνευστήρας"
+    },
+    {
+      "id": "hs_ehr",
+      "label": "Τερματικό EHR / e-Health"
+    },
+    {
+      "id": "hs_call",
+      "label": "Κουμπί Κλήσης"
+    }
+  ],
+  "ehr_config": {
+    "forms": {
+      "assessment_form": {
+        "title": "Κλινική Αξιολόγηση",
+        "fields": [
+          "observation",
+          "consciousness",
+          "hr_value",
+          "spo2_value",
+          "bp_value",
+          "rr_value"
+        ]
+      },
+      "intervention_form": {
+        "title": "Παρέμβαση Επιδείνωσης Ζωτικών",
+        "fields": [
+          "action",
+          "oxygen_check",
+          "support_measures",
+          "recheck_values"
+        ]
+      },
+      "communication_log": {
+        "title": "Ημερολόγιο Επικοινωνίας",
+        "fields": [
+          "recipient",
+          "reason",
+          "outcome"
+        ]
+      }
+    }
+  },
+  "rules": {
+    "global_rules": [
+      {
+        "id": "rule_multiple_vitals_warning",
+        "condition": {
+          "vitals.hr": {
+            "gt": 130
+          }
+        },
+        "effects": [
+          {
+            "type": "ui_visual",
+            "target": "hs_monitor",
+            "state": "blinking_red"
+          },
+          {
+            "type": "ui_toast",
+            "style": "danger",
+            "message": "ΣΥΝΑΓΕΡΜΟΣ: Πολλαπλή επιδείνωση ζωτικών."
+          }
+        ]
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "n1_start",
+      "type": "message",
+      "text": "Το μόνιτορ δείχνει HR 135, BP 90/60, RR 30 και SpO2 91%. Ο ασθενής φαίνεται καταπονημένος.",
+      "next_node_id": "n2_initial_decision"
+    },
+    {
+      "id": "n2_initial_decision",
+      "type": "decision",
+      "text": "Ποια είναι η πρώτη σου ενέργεια;",
+      "options": [
+        {
+          "id": "opt_assess",
+          "label": "Άμεση συνολική αξιολόγηση ασθενούς",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.assessment_complete": true
+            },
+            "toast": "Ο ασθενής είναι ανήσυχος και αναπνέει γρήγορα."
+          },
+          "next_node_id": "n3_confirm_problem"
+        },
+        {
+          "id": "opt_monitor",
+          "label": "Επιβεβαίωση όλων των ζωτικών στο μόνιτορ",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": 5,
+            "state_update": {
+              "flags.vitals_confirmed": true
+            },
+            "toast": "Επιβεβαιώνεις συνολική επιδείνωση ζωτικών."
+          },
+          "next_node_id": "n3_confirm_problem"
+        },
+        {
+          "id": "opt_ehr_first",
+          "label": "Άνοιγμα EHR πριν την αξιολόγηση",
+          "target_hotspot": "hs_ehr",
+          "effects": {
+            "score_delta": -5,
+            "toast": "Η καταγραφή είναι απαραίτητη, αλλά η άμεση αξιολόγηση προηγείται."
+          },
+          "next_node_id": "n3_confirm_problem"
+        }
+      ],
+      "timeout": {
+        "seconds": 25,
+        "on_timeout_effects": {
+          "vitals_update": {
+            "spo2": 88,
+            "hr": 145,
+            "rr": 34,
+            "bp": "84/55",
+            "bp_systolic": 84,
+            "bp_diastolic": 55
+          },
+          "score_delta": -15,
+          "toast": "Καθυστέρηση! Τα ζωτικά επιδεινώθηκαν."
+        },
+        "next_node_id": "n3_confirm_problem"
+      }
+    },
+    {
+      "id": "n3_confirm_problem",
+      "type": "decision",
+      "text": "Η επιδείνωση ζωτικών επιβεβαιώνεται. Τι ελέγχεις;",
+      "options": [
+        {
+          "id": "opt_check_oxygen",
+          "label": "Έλεγχος παροχής οξυγόνου / αναπνευστήρα",
+          "target_hotspot": "hs_ventilator",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.oxygen_checked": true
+            },
+            "toast": "Η παροχή οξυγόνου χρειάζεται επανέλεγχο."
+          },
+          "next_node_id": "n4_intervention"
+        },
+        {
+          "id": "opt_reassess_patient",
+          "label": "Επανεκτίμηση αναπνοής και κυκλοφορίας",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 10,
+            "toast": "Ο ασθενής παραμένει καταπονημένος."
+          },
+          "next_node_id": "n4_intervention"
+        },
+        {
+          "id": "opt_wait",
+          "label": "Συνέχιση παρακολούθησης χωρίς ενέργεια",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -20,
+            "vitals_update": {
+              "spo2": 86,
+              "hr": 150,
+              "rr": 36,
+              "bp_systolic": 80,
+              "bp": "80/50"
+            },
+            "toast": "Λάθος. Η κατάσταση χειροτερεύει."
+          },
+          "next_node_id": "n4_intervention"
+        }
+      ]
+    },
+    {
+      "id": "n4_intervention",
+      "type": "decision",
+      "text": "Ποια είναι η πιο ασφαλής επόμενη ενέργεια;",
+      "options": [
+        {
+          "id": "opt_support_call",
+          "label": "Έναρξη υποστηρικτικών μέτρων και άμεση κλήση ιατρού",
+          "target_hotspot": "hs_call",
+          "effects": {
+            "score_delta": 25,
+            "state_update": {
+              "flags.support_started": true,
+              "flags.escalation_complete": true
+            },
+            "vitals_update": {
+              "spo2": 94,
+              "hr": 120,
+              "rr": 24,
+              "bp": "100/65",
+              "bp_systolic": 100
+            },
+            "toast": "Ξεκίνησαν υποστηρικτικά μέτρα και ο ιατρός ενημερώθηκε."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        },
+        {
+          "id": "opt_oxygen_only",
+          "label": "Μόνο έλεγχος οξυγόνου χωρίς κλήση",
+          "target_hotspot": "hs_ventilator",
+          "effects": {
+            "score_delta": 5,
+            "vitals_update": {
+              "spo2": 93
+            },
+            "toast": "Το SpO2 βελτιώθηκε, αλλά η συνολική επιδείνωση χρειάζεται κλιμάκωση."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        },
+        {
+          "id": "opt_no_action",
+          "label": "Καμία παρέμβαση",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -30,
+            "vitals_update": {
+              "spo2": 84,
+              "hr": 155,
+              "rr": 38,
+              "bp": "78/48",
+              "bp_systolic": 78
+            },
+            "toast": "Κρίσιμο λάθος. Η επιδείνωση συνεχίζεται."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        }
+      ]
+    },
+    {
+      "id": "n5_gate_documentation_1",
+      "type": "gate",
+      "text": "GATE: Τεκμηρίωση επιδείνωσης ζωτικών και αρχικών μέτρων.",
+      "description": "Η ροή μπλοκάρει μέχρι να συμπληρωθούν τα απαιτούμενα πεδία στο EHR.",
+      "gate_requirements": {
+        "target_hotspot": "hs_ehr",
+        "required_forms": [
+          {
+            "form_id": "assessment_form",
+            "fields": [
+              "observation",
+              "hr_value",
+              "spo2_value",
+              "bp_value",
+              "rr_value"
+            ]
+          },
+          {
+            "form_id": "intervention_form",
+            "fields": [
+              "action",
+              "oxygen_check",
+              "support_measures",
+              "recheck_values"
+            ]
+          }
+        ]
+      },
+      "feedback_blocked": "Πρέπει να τεκμηριώσεις τα ζωτικά και τις αρχικές ενέργειες.",
+      "feedback_success": "Η τεκμηρίωση αποθηκεύτηκε.",
+      "effects_on_pass": {
+        "state_update": {
+          "flags.documentation_1_complete": true
+        },
+        "score_delta": 10
+      },
+      "next_node_id": "n6_reassessment"
+    },
+    {
+      "id": "n6_reassessment",
+      "type": "message",
+      "text": "5 λεπτά αργότερα... Το SpO2 είναι 94%, BP 100/65 και HR 120. Η κατάσταση παραμένει υπό στενή παρακολούθηση.",
+      "next_node_id": "n7_escalation_decision"
+    },
+    {
+      "id": "n7_escalation_decision",
+      "type": "decision",
+      "text": "Πρέπει να ολοκληρωθεί η κλιμάκωση και η καταγραφή;",
+      "options": [
+        {
+          "id": "opt_call_doc",
+          "label": "Κλήση ιατρού / κλιμάκωση",
+          "target_hotspot": "hs_call",
+          "effects": {
+            "state_update": {
+              "flags.escalation_complete": true
+            },
+            "score_delta": 10,
+            "toast": "Ο εφημερεύων ιατρός ενημερώθηκε."
+          },
+          "next_node_id": "n8_gate_documentation_2"
+        },
+        {
+          "id": "opt_monitor_only",
+          "label": "Συνέχιση παρακολούθησης χωρίς κλιμάκωση",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -5,
+            "toast": "Συνεχίζεις την παρακολούθηση, αλλά η κλιμάκωση θα ήταν ασφαλέστερη επιλογή."
+          },
+          "next_node_id": "n9_end_scenario"
+        }
+      ]
+    },
+    {
+      "id": "n8_gate_documentation_2",
+      "type": "gate",
+      "text": "GATE: Καταγραφή επικοινωνίας.",
+      "description": "Κατέγραψε την επικοινωνία με τον ιατρό στο Communication Log.",
+      "gate_requirements": {
+        "target_hotspot": "hs_ehr",
+        "required_forms": [
+          {
+            "form_id": "communication_log",
+            "fields": [
+              "recipient",
+              "reason",
+              "outcome"
+            ]
+          }
+        ]
+      },
+      "feedback_blocked": "Εκκρεμεί η καταγραφή επικοινωνίας στο EHR.",
+      "feedback_success": "Η επικοινωνία καταγράφηκε.",
+      "effects_on_pass": {
+        "state_update": {
+          "flags.documentation_2_complete": true
+        },
+        "score_delta": 5
+      },
+      "next_node_id": "n9_end_scenario"
+    },
+    {
+      "id": "n9_end_scenario",
+      "type": "end",
+      "text": "Το σενάριο επιδείνωσης ζωτικών ολοκληρώθηκε.",
+      "debrief_config": {
+        "show_score": true,
+        "show_decision_path": true,
+        "highlight_missed_docs": true,
+        "export_log": true
+      }
+    }
+  ],
+  "logging": {
+    "enabled": true,
+    "log_events": [
+      "NODE_ENTER",
+      "HOTSPOT_INTERACTION",
+      "OPTION_SELECTED",
+      "EHR_SUBMIT",
+      "VITALS_CHANGE"
+    ],
+    "export_format": "JSON"
+  }
+}

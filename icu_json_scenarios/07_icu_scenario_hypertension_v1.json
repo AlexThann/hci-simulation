@@ -1,0 +1,408 @@
+{
+  "schema_version": "1.0",
+  "scenario_meta": {
+    "id": "icu_scenario_hypertension_v1",
+    "title": "ΜΕΘ: Υψηλή Αρτηριακή Πίεση",
+    "description": "Σενάριο υψηλής αρτηριακής πίεσης με επιβεβαίωση, αξιολόγηση και επικοινωνία με ιατρό.",
+    "estimated_duration_minutes": 8,
+    "difficulty": "Intermediate",
+    "learning_goals": [
+      "Αναγνώριση υψηλής πίεσης",
+      "Επανέλεγχος BP",
+      "Αναζήτηση οδηγιών EHR",
+      "Τεκμηρίωση και κλιμάκωση"
+    ]
+  },
+  "initial_state": {
+    "time_elapsed": 0,
+    "current_score": 100,
+    "flags": {
+      "assessment_complete": false,
+      "bp_confirmed": false,
+      "ehr_order_checked": false,
+      "intervention_started": false,
+      "documentation_1_complete": false,
+      "escalation_complete": false,
+      "documentation_2_complete": false
+    },
+    "vitals": {
+      "hr": 115,
+      "spo2": 97,
+      "rr": 22,
+      "bp": "185/105",
+      "bp_systolic": 185,
+      "bp_diastolic": 105,
+      "temp": 37.1
+    },
+    "ui": {
+      "active_hotspots": [
+        "hs_monitor",
+        "hs_patient",
+        "hs_ehr",
+        "hs_call",
+        "hs_medication_cart"
+      ],
+      "monitor_alert": true
+    }
+  },
+  "hotspots": [
+    {
+      "id": "hs_monitor",
+      "label": "Μόνιτορ Ζωτικών Λειτουργιών"
+    },
+    {
+      "id": "hs_patient",
+      "label": "Ασθενής / Κλίνη"
+    },
+    {
+      "id": "hs_ehr",
+      "label": "Τερματικό EHR / e-Health"
+    },
+    {
+      "id": "hs_call",
+      "label": "Κουμπί Κλήσης"
+    },
+    {
+      "id": "hs_medication_cart",
+      "label": "Τροχήλατο Φαρμάκων"
+    }
+  ],
+  "ehr_config": {
+    "forms": {
+      "assessment_form": {
+        "title": "Κλινική Αξιολόγηση",
+        "fields": [
+          "observation",
+          "consciousness",
+          "bp_value",
+          "symptoms"
+        ]
+      },
+      "intervention_form": {
+        "title": "Παρέμβαση Υπέρτασης",
+        "fields": [
+          "action",
+          "ehr_order_checked",
+          "bp_recheck"
+        ]
+      },
+      "communication_log": {
+        "title": "Ημερολόγιο Επικοινωνίας",
+        "fields": [
+          "recipient",
+          "reason",
+          "outcome"
+        ]
+      }
+    }
+  },
+  "rules": {
+    "global_rules": [
+      {
+        "id": "rule_high_bp_alarm",
+        "condition": {
+          "vitals.bp_systolic": {
+            "gt": 180
+          }
+        },
+        "effects": [
+          {
+            "type": "ui_visual",
+            "target": "hs_monitor",
+            "state": "blinking_red"
+          },
+          {
+            "type": "ui_toast",
+            "style": "danger",
+            "message": "ΣΥΝΑΓΕΡΜΟΣ: Συστολική πίεση > 180 mmHg"
+          }
+        ]
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "n1_start",
+      "type": "message",
+      "text": "Το μόνιτορ δείχνει BP 185/105 και HR 115. Ο ασθενής αναφέρει πονοκέφαλο.",
+      "next_node_id": "n2_initial_decision"
+    },
+    {
+      "id": "n2_initial_decision",
+      "type": "decision",
+      "text": "Ποια είναι η πρώτη σου ενέργεια;",
+      "options": [
+        {
+          "id": "opt_assess",
+          "label": "Αξιολόγηση συμπτωμάτων ασθενούς",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.assessment_complete": true
+            },
+            "toast": "Ο ασθενής αναφέρει πονοκέφαλο και ανησυχία."
+          },
+          "next_node_id": "n3_confirm_problem"
+        },
+        {
+          "id": "opt_monitor",
+          "label": "Επιβεβαίωση BP στο μόνιτορ",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": 5,
+            "state_update": {
+              "flags.bp_confirmed": true
+            },
+            "toast": "Η πίεση παραμένει υψηλή σε επαναλαμβανόμενη μέτρηση."
+          },
+          "next_node_id": "n3_confirm_problem"
+        },
+        {
+          "id": "opt_silence",
+          "label": "Σίγαση alarm",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -10,
+            "toast": "Η σίγαση δεν αντιμετωπίζει το πρόβλημα."
+          },
+          "next_node_id": "n3_confirm_problem"
+        }
+      ],
+      "timeout": {
+        "seconds": 30,
+        "on_timeout_effects": {
+          "vitals_update": {
+            "bp": "195/112",
+            "bp_systolic": 195,
+            "bp_diastolic": 112,
+            "hr": 122
+          },
+          "score_delta": -10,
+          "toast": "Καθυστέρηση! Η BP ανέβηκε σε 195/112."
+        },
+        "next_node_id": "n3_confirm_problem"
+      }
+    },
+    {
+      "id": "n3_confirm_problem",
+      "type": "decision",
+      "text": "Η υψηλή πίεση επιβεβαιώνεται. Ποιο βήμα ακολουθεί;",
+      "options": [
+        {
+          "id": "opt_ehr_order",
+          "label": "Έλεγχος οδηγιών στο EHR",
+          "target_hotspot": "hs_ehr",
+          "effects": {
+            "score_delta": 10,
+            "state_update": {
+              "flags.ehr_order_checked": true
+            },
+            "toast": "Ελέγχεις τις καταγεγραμμένες οδηγίες και προηγούμενες τιμές BP."
+          },
+          "next_node_id": "n4_intervention"
+        },
+        {
+          "id": "opt_check_meds",
+          "label": "Προετοιμασία τροχήλατου φαρμάκων σύμφωνα με οδηγίες",
+          "target_hotspot": "hs_medication_cart",
+          "effects": {
+            "score_delta": 5,
+            "toast": "Προετοιμάζεις διαθέσιμο εξοπλισμό, χωρίς να παρακάμπτεις την οδηγία."
+          },
+          "next_node_id": "n4_intervention"
+        },
+        {
+          "id": "opt_wait",
+          "label": "Αναμονή χωρίς ενημέρωση",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -20,
+            "vitals_update": {
+              "bp": "200/115",
+              "bp_systolic": 200,
+              "bp_diastolic": 115,
+              "hr": 130
+            },
+            "toast": "Λάθος. Η πίεση αυξάνεται."
+          },
+          "next_node_id": "n4_intervention"
+        }
+      ]
+    },
+    {
+      "id": "n4_intervention",
+      "type": "decision",
+      "text": "Ποια ενέργεια επιλέγεις;",
+      "options": [
+        {
+          "id": "opt_report_prepare",
+          "label": "Ενημέρωση ιατρού και προετοιμασία σύμφωνα με οδηγία",
+          "target_hotspot": "hs_call",
+          "effects": {
+            "score_delta": 20,
+            "state_update": {
+              "flags.intervention_started": true,
+              "flags.escalation_complete": true
+            },
+            "vitals_update": {
+              "bp": "165/95",
+              "bp_systolic": 165,
+              "bp_diastolic": 95,
+              "hr": 100
+            },
+            "toast": "Ο ιατρός ενημερώθηκε και δόθηκαν οδηγίες. Η BP αρχίζει να μειώνεται."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        },
+        {
+          "id": "opt_monitor_only",
+          "label": "Συνέχιση παρακολούθησης",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -5,
+            "toast": "Η παρακολούθηση μόνη της δεν επαρκεί σε πολύ υψηλή BP."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        },
+        {
+          "id": "opt_no_action",
+          "label": "Καμία ενέργεια",
+          "target_hotspot": "hs_patient",
+          "effects": {
+            "score_delta": -25,
+            "vitals_update": {
+              "bp": "205/118",
+              "bp_systolic": 205,
+              "bp_diastolic": 118
+            },
+            "toast": "Κρίσιμο λάθος. Η πίεση παραμένει επικίνδυνα υψηλή."
+          },
+          "next_node_id": "n5_gate_documentation_1"
+        }
+      ]
+    },
+    {
+      "id": "n5_gate_documentation_1",
+      "type": "gate",
+      "text": "GATE: Τεκμηρίωση υψηλής αρτηριακής πίεσης.",
+      "description": "Η ροή μπλοκάρει μέχρι να συμπληρωθούν τα απαιτούμενα πεδία στο EHR.",
+      "gate_requirements": {
+        "target_hotspot": "hs_ehr",
+        "required_forms": [
+          {
+            "form_id": "assessment_form",
+            "fields": [
+              "observation",
+              "bp_value",
+              "symptoms"
+            ]
+          },
+          {
+            "form_id": "intervention_form",
+            "fields": [
+              "action",
+              "ehr_order_checked",
+              "bp_recheck"
+            ]
+          }
+        ]
+      },
+      "feedback_blocked": "Πρέπει να τεκμηριώσεις BP, συμπτώματα και ενέργεια.",
+      "feedback_success": "Η τεκμηρίωση αποθηκεύτηκε.",
+      "effects_on_pass": {
+        "state_update": {
+          "flags.documentation_1_complete": true
+        },
+        "score_delta": 10
+      },
+      "next_node_id": "n6_reassessment"
+    },
+    {
+      "id": "n6_reassessment",
+      "type": "message",
+      "text": "10 λεπτά αργότερα... Η BP είναι 165/95 και ο ασθενής αναφέρει λιγότερη δυσφορία.",
+      "next_node_id": "n7_escalation_decision"
+    },
+    {
+      "id": "n7_escalation_decision",
+      "type": "decision",
+      "text": "Πρέπει να καταγραφεί/ολοκληρωθεί η επικοινωνία με τον ιατρό;",
+      "options": [
+        {
+          "id": "opt_call_doc",
+          "label": "Κλήση ιατρού / κλιμάκωση",
+          "target_hotspot": "hs_call",
+          "effects": {
+            "state_update": {
+              "flags.escalation_complete": true
+            },
+            "score_delta": 10,
+            "toast": "Ο εφημερεύων ιατρός ενημερώθηκε."
+          },
+          "next_node_id": "n8_gate_documentation_2"
+        },
+        {
+          "id": "opt_monitor_only",
+          "label": "Συνέχιση παρακολούθησης χωρίς κλιμάκωση",
+          "target_hotspot": "hs_monitor",
+          "effects": {
+            "score_delta": -5,
+            "toast": "Συνεχίζεις την παρακολούθηση, αλλά η κλιμάκωση θα ήταν ασφαλέστερη επιλογή."
+          },
+          "next_node_id": "n9_end_scenario"
+        }
+      ]
+    },
+    {
+      "id": "n8_gate_documentation_2",
+      "type": "gate",
+      "text": "GATE: Καταγραφή επικοινωνίας.",
+      "description": "Κατέγραψε την επικοινωνία με τον ιατρό στο Communication Log.",
+      "gate_requirements": {
+        "target_hotspot": "hs_ehr",
+        "required_forms": [
+          {
+            "form_id": "communication_log",
+            "fields": [
+              "recipient",
+              "reason",
+              "outcome"
+            ]
+          }
+        ]
+      },
+      "feedback_blocked": "Εκκρεμεί η καταγραφή επικοινωνίας στο EHR.",
+      "feedback_success": "Η επικοινωνία καταγράφηκε.",
+      "effects_on_pass": {
+        "state_update": {
+          "flags.documentation_2_complete": true
+        },
+        "score_delta": 5
+      },
+      "next_node_id": "n9_end_scenario"
+    },
+    {
+      "id": "n9_end_scenario",
+      "type": "end",
+      "text": "Το σενάριο υψηλής πίεσης ολοκληρώθηκε.",
+      "debrief_config": {
+        "show_score": true,
+        "show_decision_path": true,
+        "highlight_missed_docs": true,
+        "export_log": true
+      }
+    }
+  ],
+  "logging": {
+    "enabled": true,
+    "log_events": [
+      "NODE_ENTER",
+      "HOTSPOT_INTERACTION",
+      "OPTION_SELECTED",
+      "EHR_SUBMIT",
+      "VITALS_CHANGE"
+    ],
+    "export_format": "JSON"
+  }
+}
