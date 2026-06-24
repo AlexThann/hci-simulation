@@ -1,4 +1,0 @@
-[13:12:31] VENTILATOR_UPDATE: FiO2 increased to 31%
-[13:12:32] VENTILATOR_UPDATE: FiO2 increased to 41%
-[13:12:33] VENTILATOR_UPDATE: FiO2 decreased to 31%
-[13:12:34] VENTILATOR_UPDATE: FiO2 decreased to 21%
