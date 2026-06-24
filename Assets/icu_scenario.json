@@ -35,8 +35,7 @@
                 "hs_monitor",
                 "hs_patient",
                 "hs_ventilator",
-                "hs_ehr",
-                "hs_call"
+                "hs_ehr"
             ],
             "monitor_alert": true
         }

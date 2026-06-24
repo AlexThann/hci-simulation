@@ -7,6 +7,17 @@ using System.Collections.Generic;
 public class ScenarioData
 {
     public List<HotspotData> hotspots;
+    public InitialState initial_state;
+}
+
+public class InitialState
+{
+    public UiState ui;
+}
+
+public class UiState
+{
+    public List<string> active_hotspots;
 }
 
 public class HotspotData
@@ -34,41 +45,49 @@ public class HotspotSpawner : MonoBehaviour
 
         if (parsedData != null && parsedData.hotspots != null)
         {
-            SpawnAssets(parsedData.hotspots);
+            SpawnAssets(parsedData.hotspots, parsedData.initial_state?.ui?.active_hotspots);
         }
     }
 
-    void SpawnAssets(List<HotspotData> hotspotsToLoad)
+    void SpawnAssets(List<HotspotData> hotspotsToLoad, List<string> activeHotspotIds)
     {
+        if (activeHotspotIds == null)
+        {
+            Debug.LogWarning("No active_hotspots list found in JSON.");
+            return;
+        }
+
         foreach (HotspotData hs in hotspotsToLoad)
         {
-            // Look for the physical prefab in your Resources folder
+            // Skip hotspots that are not active in initial_state.ui.active_hotspots
+            if (!activeHotspotIds.Contains(hs.id))
+            {
+                Debug.Log($"Skipping inactive hotspot: {hs.id}");
+                continue;
+            }
+
             GameObject prefab = Resources.Load<GameObject>("Hotspots/" + hs.id);
 
             if (prefab == null)
             {
-                Debug.LogWarning($"Missing Prefab: Create a prefab named '{hs.id}' inside your Resources/Hotspots folder.");
+                Debug.LogWarning($"Missing Prefab: Create a prefab named '{hs.id}' inside Resources/Hotspots.");
                 continue;
             }
 
-            // Find where to place it in the room
             GameObject anchor = GameObject.Find("Anchor_" + hs.id);
 
-            Vector3 spawnPosition = Vector3.zero;
-            Quaternion spawnRotation = Quaternion.identity;
-
-            if (anchor != null)
+            if (anchor == null)
             {
-                spawnPosition = anchor.transform.position;
-                spawnRotation = anchor.transform.rotation;
-            }
-            else
-            {
-                Debug.LogWarning($"Missing Anchor: Create an empty object named 'Anchor_{hs.id}' in your scene to place this object.");
+                Debug.LogWarning($"Missing Anchor: Create an empty object named 'Anchor_{hs.id}' in your scene.");
+                continue;
             }
 
-            // Spawn the object
-            GameObject spawnedObject = Instantiate(prefab, spawnPosition, spawnRotation);
+            GameObject spawnedObject = Instantiate(
+                prefab,
+                anchor.transform.position,
+                anchor.transform.rotation
+            );
+
             spawnedObject.name = "Active_" + hs.id;
         }
     }
