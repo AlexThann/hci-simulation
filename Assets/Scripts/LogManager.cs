@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using System.IO;
 
 [Serializable]
 public class LogEntry
@@ -24,5 +25,22 @@ public class LogManager : MonoBehaviour
         });
 
         Debug.Log($"[{eventType}] {details}");
+    }
+
+    public void ExportLogsToTXT()
+    {
+        string path = Application.dataPath + "/simulation_log.txt";
+
+        using (StreamWriter writer = new StreamWriter(path))
+        {
+            foreach (LogEntry log in logs)
+            {
+                writer.WriteLine(
+                    $"[{log.timestamp}] {log.eventType}: {log.details}"
+                );
+            }
+        }
+
+        Debug.Log("Logs exported to: " + path);
     }
 }
